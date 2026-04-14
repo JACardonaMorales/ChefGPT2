@@ -5,6 +5,7 @@ resource "aws_instance" "mongodb" {
   key_name               = var.key_name
   subnet_id              = var.subnet_ids[0]
   vpc_security_group_ids = [aws_security_group.mongodb_sg.id]
+  iam_instance_profile   = "LabInstanceProfile"
   user_data              = file("${path.module}/scripts/install_mongodb.sh")
 
   tags = { Name = "ChefGPT-MongoDB", Role = "NoSQLDatabase" }
@@ -17,41 +18,13 @@ resource "aws_instance" "rabbitmq" {
   key_name               = var.key_name
   subnet_id              = var.subnet_ids[0]
   vpc_security_group_ids = [aws_security_group.rabbitmq_sg.id]
+  iam_instance_profile   = "LabInstanceProfile"
   user_data              = file("${path.module}/scripts/install_rabbitmq.sh")
 
   tags = { Name = "ChefGPT-RabbitMQ", Role = "MessageBroker" }
 }
 
-# ── 3. Worker ────────────────────────────────────────────────
-resource "aws_instance" "worker" {
-  ami                    = var.ami_id
-  instance_type          = var.instance_type
-  key_name               = var.key_name
-  subnet_id              = var.subnet_ids[0]
-  vpc_security_group_ids = [aws_security_group.worker_sg.id]
-  user_data              = file("${path.module}/scripts/install_worker.sh")
-
-  tags = { Name = "ChefGPT-Worker", Role = "AsyncWorker" }
-
-  depends_on = [aws_instance.rabbitmq, aws_instance.mongodb]
-}
-
-# ── 4. API x2 (detrás del ALB) ──────────────────────────────
-resource "aws_instance" "api" {
-  count                  = 2
-  ami                    = var.ami_id
-  instance_type          = var.instance_type
-  key_name               = var.key_name
-  subnet_id              = var.subnet_ids[count.index]
-  vpc_security_group_ids = [aws_security_group.api_sg.id]
-  user_data              = file("${path.module}/scripts/install_api.sh")
-
-  tags = { Name = "ChefGPT-API-${count.index + 1}", Role = "BackendAPI" }
-
-  depends_on = [aws_instance.rabbitmq, aws_instance.mongodb]
-}
-
-# ── 5. Parameter Store ───────────────────────────────────────
+# ── 3. Parameter Store (necesario antes de API y Worker) ─────
 resource "aws_ssm_parameter" "rabbitmq_ip" {
   name        = "/chefgpt/dev/rabbitmq/public_ip"
   type        = "String"
@@ -66,6 +39,37 @@ resource "aws_ssm_parameter" "mongodb_ip" {
   value       = aws_instance.mongodb.public_ip
   description = "IP pública de MongoDB"
   overwrite   = true
+}
+
+# ── 4. Worker ────────────────────────────────────────────────
+resource "aws_instance" "worker" {
+  ami                    = var.ami_id
+  instance_type          = var.instance_type
+  key_name               = var.key_name
+  subnet_id              = var.subnet_ids[0]
+  vpc_security_group_ids = [aws_security_group.worker_sg.id]
+  iam_instance_profile   = "LabInstanceProfile"
+  user_data              = file("${path.module}/scripts/install_worker.sh")
+
+  tags = { Name = "ChefGPT-Worker", Role = "AsyncWorker" }
+
+  depends_on = [aws_ssm_parameter.rabbitmq_ip, aws_ssm_parameter.mongodb_ip]
+}
+
+# ── 5. API x2 (detrás del ALB) ──────────────────────────────
+resource "aws_instance" "api" {
+  count                  = 2
+  ami                    = var.ami_id
+  instance_type          = var.instance_type
+  key_name               = var.key_name
+  subnet_id              = var.subnet_ids[count.index]
+  vpc_security_group_ids = [aws_security_group.api_sg.id]
+  iam_instance_profile   = "LabInstanceProfile"
+  user_data              = file("${path.module}/scripts/install_api.sh")
+
+  tags = { Name = "ChefGPT-API-${count.index + 1}", Role = "BackendAPI" }
+
+  depends_on = [aws_ssm_parameter.rabbitmq_ip, aws_ssm_parameter.mongodb_ip]
 }
 
 # ── 6. Target Group ──────────────────────────────────────────
