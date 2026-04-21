@@ -1,3 +1,4 @@
+import time
 import pika
 import pymongo
 import boto3
@@ -20,9 +21,24 @@ RABBITMQ_HOST = get_ssm_parameter("/chefgpt/dev/rabbitmq/public_ip")
 MONGODB_HOST  = get_ssm_parameter("/chefgpt/dev/mongodb/public_ip")
 
 credentials = pika.PlainCredentials('user', 'password')
-connection = pika.BlockingConnection(
-    pika.ConnectionParameters(host=RABBITMQ_HOST, credentials=credentials)
-)
+
+# Retry loop: RabbitMQ puede no estar listo al arrancar la instancia
+connection = None
+for attempt in range(10):
+    try:
+        print(f"[*] Conectando a RabbitMQ {RABBITMQ_HOST} (intento {attempt + 1}/10)...")
+        connection = pika.BlockingConnection(
+            pika.ConnectionParameters(host=RABBITMQ_HOST, credentials=credentials)
+        )
+        print("[*] Conectado a RabbitMQ.")
+        break
+    except Exception as e:
+        print(f"[WARN] RabbitMQ no disponible: {e}. Reintentando en 10s...")
+        time.sleep(10)
+
+if connection is None:
+    raise RuntimeError("No se pudo conectar a RabbitMQ después de 10 intentos.")
+
 channel = connection.channel()
 channel.exchange_declare(exchange='logs', exchange_type='fanout')
 
