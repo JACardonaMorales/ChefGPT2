@@ -1,4 +1,6 @@
-###Guía Pruebas
+# Guía Pruebas
+
+tofu output alb_dns_name
 1. curl http://chefgpt-api-alb-696677446.us-east-1.elb.amazonaws.com
 Salida esperada: {"status": "ok", "service": "RabbitMQ Logger API"}
 2. Enviar logs (POST /logs)
