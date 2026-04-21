@@ -1,15 +1,17 @@
 #!/bin/bash
-set -e
+# Amazon Linux 2023 usa OpenSSL 3.x — los RPMs de Erlang/el8 son incompatibles.
+# Solución: correr RabbitMQ en Docker.
+
 dnf update -y
-# Instalar Erlang y RabbitMQ
-dnf install -y erlang
-rpm --import https://packagecloud.io/rabbitmq/rabbitmq-server/gpgkey
-dnf install -y https://github.com/rabbitmq/rabbitmq-server/releases/download/v3.12.13/rabbitmq-server-3.12.13-1.el8.noarch.rpm
-systemctl start rabbitmq-server
-systemctl enable rabbitmq-server
-# Habilitar plugin de management
-rabbitmq-plugins enable rabbitmq_management
-# Crear usuario de la app
-rabbitmqctl add_user user password
-rabbitmqctl set_user_tags user administrator
-rabbitmqctl set_permissions -p / user ".*" ".*" ".*"
+dnf install -y docker
+systemctl start docker
+systemctl enable docker
+
+docker run -d \
+  --name rabbitmq \
+  --restart always \
+  -p 5672:5672 \
+  -p 15672:15672 \
+  -e RABBITMQ_DEFAULT_USER=user \
+  -e RABBITMQ_DEFAULT_PASS=password \
+  rabbitmq:3-management
