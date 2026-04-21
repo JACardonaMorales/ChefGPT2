@@ -14,6 +14,6 @@ git clone https://github.com/JACardonaMorales/ChefGPT2.git /app
 
 echo "[4] Starting worker..."
 cd /app
-PYTHONUNBUFFERED=1 nohup python3 worker.py >> /var/log/worker.log 2>&1 &
+PYTHONUNBUFFERED=1 nohup python3 worker.py >> /tmp/worker.log 2>&1 &
 
 echo "[5] Done. Worker PID: $!"
