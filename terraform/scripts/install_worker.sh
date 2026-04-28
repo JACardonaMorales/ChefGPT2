@@ -12,8 +12,29 @@ echo "[3] Cloning repo..."
 rm -rf /app
 git clone https://github.com/JACardonaMorales/ChefGPT2.git /app
 
-echo "[4] Starting worker..."
-cd /app
-PYTHONUNBUFFERED=1 nohup python3 worker.py >> /tmp/worker.log 2>&1 &
+echo "[4] Creating systemd service..."
+cat > /etc/systemd/system/worker.service << 'EOF'
+[Unit]
+Description=ChefGPT2 Worker
+After=network.target
+StartLimitIntervalSec=0
 
-echo "[5] Done. Worker PID: $!"
+[Service]
+Type=simple
+User=ec2-user
+WorkingDirectory=/app
+ExecStart=/usr/bin/python3 /app/worker.py
+Restart=always
+RestartSec=10
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+echo "[5] Enabling and starting service..."
+systemctl daemon-reload
+systemctl enable worker
+systemctl start worker
+
+echo "[6] Done."
